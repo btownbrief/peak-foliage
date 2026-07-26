@@ -1,0 +1,483 @@
+/* PEAK FOLIAGE — a Btown Games production */
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --pine: #122b1f;
+  --pine-2: #16382a;
+  --floor: #0e241a;
+  --cream: #f6efdc;
+  --cream-dim: #cfc3a4;
+  --sun: #f2b04a;
+  --leaf-green: #4db473;
+  --leaf-green-deep: #2e7d4c;
+  --leaf-red: #d95230;
+  --leaf-red-deep: #a63317;
+  --canopy: #2b6a44;
+  --bark: #57402c;
+  --panel: #1c4a34;
+  --panel-dark: #143a28;
+}
+
+html, body {
+  height: 100%;
+  overscroll-behavior: none;
+  background: var(--pine);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+}
+
+/* Crisp October morning: gold sun band over the Greens, deep woods below */
+#app {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background: linear-gradient(
+    180deg,
+    #27506b 0%,
+    #4e7186 14%,
+    #d9a45e 22%,
+    #f2c06a 26%,
+    #23543c 27%,
+    #1b4531 55%,
+    #122b1f 100%
+  );
+}
+
+#sky { display: none; }
+
+#ridge-far,
+#ridge-near {
+  position: absolute;
+  left: 0;
+  right: 0;
+  width: 100%;
+  pointer-events: none;
+}
+#ridge-far { top: calc(26% - 9vh); height: 9vh; opacity: 0.95; }
+#ridge-near { top: calc(26% - 5vh); height: 5.5vh; }
+
+.hidden { display: none !important; }
+
+/* ---------------------------------------------------------------- screens */
+
+.screen {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: calc(env(safe-area-inset-top, 0px) + 10px) 14px calc(env(safe-area-inset-bottom, 0px) + 8px);
+}
+
+#menu { justify-content: center; }
+
+.menu-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2.6vh;
+  width: 100%;
+  max-width: 420px;
+  flex: 1;
+  justify-content: center;
+  min-height: 0;
+  z-index: 2;
+}
+
+/* falling leaves behind the menu */
+.drift { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.drift i {
+  position: absolute;
+  top: -8%;
+  font-style: normal;
+  font-size: 26px;
+  opacity: 0.8;
+  animation: fall 9s linear infinite;
+}
+.drift i:nth-child(1) { left: 8%; animation-duration: 10s; }
+.drift i:nth-child(2) { left: 30%; animation-delay: 2.5s; font-size: 20px; }
+.drift i:nth-child(3) { left: 55%; animation-delay: 5s; animation-duration: 12s; }
+.drift i:nth-child(4) { left: 72%; animation-delay: 1.2s; font-size: 18px; }
+.drift i:nth-child(5) { left: 88%; animation-delay: 6.8s; font-size: 22px; }
+@keyframes fall {
+  0% { transform: translateY(-6vh) rotate(0deg) translateX(0); }
+  25% { transform: translateY(24vh) rotate(90deg) translateX(3vw); }
+  50% { transform: translateY(54vh) rotate(180deg) translateX(-3vw); }
+  75% { transform: translateY(82vh) rotate(270deg) translateX(3vw); }
+  100% { transform: translateY(112vh) rotate(360deg) translateX(0); }
+}
+
+/* wordmark */
+#logo { text-align: center; }
+.l-peak {
+  display: block;
+  font-size: clamp(18px, 3vh, 26px);
+  font-weight: 900;
+  letter-spacing: 0.62em;
+  margin-left: 0.62em; /* optical centering vs letterspacing */
+  color: var(--sun);
+  text-shadow: 0 2px 0 rgba(14, 36, 26, 0.8);
+}
+.l-foliage { display: block; margin-top: 0.6vh; white-space: nowrap; }
+.l-foliage i {
+  display: inline-block;
+  font-style: normal;
+  font-weight: 900;
+  font-size: clamp(36px, min(10vh, 12vw), 80px);
+  line-height: 1;
+  -webkit-text-stroke: 2.5px var(--floor);
+  text-shadow: 0 5px 0 var(--floor), 0 8px 18px rgba(0, 0, 0, 0.4);
+  animation: bobble 2.6s ease-in-out infinite;
+}
+/* the season turns letter by letter: summer green → peak red */
+.l-foliage i:nth-child(1) { color: #4db473; }
+.l-foliage i:nth-child(2) { color: #74b45c; animation-delay: 0.12s; }
+.l-foliage i:nth-child(3) { color: #a8b04a; animation-delay: 0.24s; }
+.l-foliage i:nth-child(4) { color: #d9a53e; animation-delay: 0.36s; }
+.l-foliage i:nth-child(5) { color: #e08236; animation-delay: 0.48s; }
+.l-foliage i:nth-child(6) { color: #d95230; animation-delay: 0.6s; }
+.l-foliage i:nth-child(7) { color: #b93a20; animation-delay: 0.72s; }
+@keyframes bobble {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-5px) rotate(-2deg); }
+}
+
+#tagline {
+  text-align: center;
+  color: var(--cream-dim);
+  font-size: clamp(13px, 1.9vh, 16px);
+  line-height: 1.45;
+}
+
+/* ---------------------------------------------------------------- buttons */
+
+.big-btn {
+  border: none;
+  border-radius: 16px;
+  padding: 14px 26px;
+  font-size: clamp(16px, 2.3vh, 20px);
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  color: var(--floor);
+  background: linear-gradient(180deg, #f7c96b, #ee9d3d);
+  box-shadow: 0 4px 0 #9c5f1b, 0 8px 16px rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+}
+.big-btn:active { transform: translateY(3px); box-shadow: 0 1px 0 #9c5f1b; }
+
+#modes { display: flex; flex-direction: column; align-items: center; gap: 1.1vh; width: 100%; }
+.mode-big { width: min(300px, 84%); }
+.mode-sub { color: var(--cream-dim); font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; }
+
+#botRow { display: flex; gap: 10px; width: min(340px, 94%); margin-top: 1.2vh; }
+.bot-btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: center;
+  border: 2px solid rgba(246, 239, 220, 0.25);
+  border-radius: 14px;
+  padding: 12px 8px;
+  background: rgba(14, 36, 26, 0.55);
+  color: var(--cream);
+  cursor: pointer;
+}
+.bot-btn:active { transform: translateY(2px); }
+.bot-name { font-weight: 900; font-size: clamp(13px, 1.8vh, 15px); letter-spacing: 0.04em; }
+.bot-blurb { font-size: 11px; color: var(--cream-dim); }
+
+.chip-btn {
+  border: 1.5px solid rgba(246, 239, 220, 0.35);
+  border-radius: 999px;
+  padding: 7px 14px;
+  background: rgba(14, 36, 26, 0.55);
+  color: var(--cream);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+}
+
+#howTo {
+  max-width: 330px;
+  background: rgba(14, 36, 26, 0.75);
+  border: 1.5px solid rgba(246, 239, 220, 0.2);
+  border-radius: 14px;
+  padding: 12px 16px;
+  color: var(--cream-dim);
+  font-size: 13px;
+  line-height: 1.5;
+  text-align: center;
+}
+
+#credit { color: var(--cream-dim); font-size: 12px; padding: 8px 0 2px; z-index: 2; }
+#credit a { color: var(--sun); text-decoration: none; font-weight: 700; }
+
+/* ------------------------------------------------------------- game shell */
+
+#game { justify-content: flex-start; gap: 6px; }
+
+#topbar {
+  width: 100%;
+  max-width: 480px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+#tally { color: var(--cream); font-weight: 800; font-size: 13px; letter-spacing: 0.06em; white-space: nowrap; }
+#mute {
+  border: none;
+  background: rgba(14, 36, 26, 0.55);
+  border-radius: 999px;
+  width: 38px;
+  height: 34px;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+#turnbar { min-height: 30px; display: flex; align-items: center; }
+#turnChip {
+  display: inline-block;
+  padding: 5px 16px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  color: var(--floor);
+  background: var(--cream);
+  transition: background 0.25s, color 0.25s;
+}
+#turnChip.green { background: var(--leaf-green); }
+#turnChip.red { background: var(--leaf-red); color: var(--cream); }
+
+/* ------------------------------------------------- the canopy + thermos */
+
+#forest {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  max-width: 520px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+#canopy { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: center; }
+
+#board {
+  width: 100%;
+  max-width: min(430px, calc(100dvh - 250px));
+  aspect-ratio: 1;
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  grid-template-rows: repeat(8, 1fr);
+  gap: 2.5px;
+  padding: 7px;
+  background: var(--floor);
+  border: 3px solid var(--bark);
+  border-radius: 16px;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45), inset 0 0 22px rgba(0, 0, 0, 0.5);
+}
+
+.cell {
+  position: relative;
+  border-radius: 22%;
+  background: radial-gradient(circle at 32% 28%, #327a4e, var(--canopy) 65%);
+  box-shadow: inset 0 -2px 4px rgba(0, 0, 0, 0.3);
+}
+/* the canopy isn't one flat green */
+.cell:nth-child(3n) { background: radial-gradient(circle at 60% 30%, #2f7449, #276140 65%); }
+.cell:nth-child(7n) { background: radial-gradient(circle at 40% 60%, #35804f, #2b6a44 65%); }
+.cell:nth-child(11n) { background: radial-gradient(circle at 50% 40%, #2d6f47, #245c3c 65%); }
+
+.cell.legal { cursor: pointer; }
+.cell.legal::before {
+  content: '';
+  position: absolute;
+  inset: 36%;
+  border-radius: 50%;
+  background: rgba(246, 239, 220, 0.55);
+  box-shadow: 0 0 6px rgba(246, 239, 220, 0.4);
+  animation: dot-breathe 1.6s ease-in-out infinite;
+}
+@keyframes dot-breathe {
+  0%, 100% { transform: scale(1); opacity: 0.75; }
+  50% { transform: scale(1.25); opacity: 1; }
+}
+
+/* leaves that would flip while a legal square is held down */
+.cell.will-flip { z-index: 2; }
+/* brightness goes on the faces — a filter on .leaf-inner would flatten its
+   3D context and show the wrong side of the leaf */
+.cell.will-flip .face { filter: brightness(1.35) saturate(1.15); }
+.cell.will-flip::after {
+  content: '';
+  position: absolute;
+  inset: 2%;
+  border-radius: 30%;
+  box-shadow: 0 0 0 2.5px var(--sun), 0 0 12px rgba(242, 176, 74, 0.7);
+  pointer-events: none;
+}
+
+#countChip {
+  position: absolute;
+  z-index: 30;
+  transform: translate(-50%, -130%);
+  background: var(--sun);
+  color: var(--floor);
+  font-weight: 900;
+  font-size: 15px;
+  padding: 4px 11px;
+  border-radius: 999px;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.4);
+  pointer-events: none;
+}
+
+/* --------------------------------------------------------------- leaves */
+
+.leaf {
+  position: absolute;
+  inset: 6%;
+  perspective: 320px;
+  pointer-events: none;
+}
+.leaf-inner {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+  transition: transform 0.55s cubic-bezier(0.45, 1.35, 0.55, 1);
+}
+.leaf.red .leaf-inner { transform: rotateY(180deg); }
+.face {
+  position: absolute;
+  inset: 5%;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  /* teardrop rotated 45° = a leaf, stem-tip down */
+  border-radius: 62% 10% 62% 62%;
+  transform: rotate(45deg);
+}
+.face.front {
+  background:
+    linear-gradient(45deg, transparent 44%, rgba(11, 46, 27, 0.4) 49%, rgba(11, 46, 27, 0.4) 51%, transparent 56%),
+    radial-gradient(circle at 35% 30%, #63c785, var(--leaf-green) 55%, var(--leaf-green-deep));
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.35);
+}
+.face.back {
+  transform: rotateY(180deg) rotate(45deg);
+  background:
+    linear-gradient(45deg, transparent 44%, rgba(74, 16, 5, 0.4) 49%, rgba(74, 16, 5, 0.4) 51%, transparent 56%),
+    radial-gradient(circle at 35% 30%, #ef7c4a, var(--leaf-red) 55%, var(--leaf-red-deep));
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.35);
+}
+
+.leaf.drop { animation: leaf-drop 0.45s cubic-bezier(0.3, 1.5, 0.55, 1); }
+@keyframes leaf-drop {
+  0% { transform: translateY(-160%) rotate(-50deg) scale(0.5); opacity: 0; }
+  60% { transform: translateY(6%) rotate(6deg) scale(1.05); opacity: 1; }
+  100% { transform: translateY(0) rotate(0deg) scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .leaf-inner { transition-duration: 0.15s; }
+  .leaf.drop, .l-foliage i, .drift i, .cell.legal::before { animation: none; }
+}
+
+/* --------------------------------------------------------- thermometers */
+
+.thermo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  height: min(430px, calc(100dvh - 250px), 100%);
+  padding: 2px 0;
+}
+.peak-label {
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+  color: var(--cream-dim);
+  writing-mode: horizontal-tb;
+}
+.tube {
+  position: relative;
+  flex: 1;
+  width: 13px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1.5px solid rgba(246, 239, 220, 0.3);
+  overflow: hidden;
+}
+.tube .fill {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3%;
+  border-radius: 999px;
+  transition: height 0.7s cubic-bezier(0.3, 1, 0.4, 1);
+}
+#thermoGreen .fill { background: linear-gradient(180deg, #63c785, var(--leaf-green-deep)); }
+#thermoRed .fill { background: linear-gradient(180deg, #ef7c4a, var(--leaf-red-deep)); }
+.bulb {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 900;
+  font-size: 14px;
+  color: var(--cream);
+  border: 1.5px solid rgba(246, 239, 220, 0.3);
+  transition: transform 0.25s;
+}
+#thermoGreen .bulb { background: var(--leaf-green-deep); }
+#thermoRed .bulb { background: var(--leaf-red-deep); }
+.bulb.pulse { transform: scale(1.18); }
+
+/* ------------------------------------------------------ pass + results */
+
+#passbar,
+#resultbar {
+  position: absolute;
+  left: 50%;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 18px);
+  transform: translateX(-50%);
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: min(360px, 92%);
+  background: rgba(14, 36, 26, 0.92);
+  border: 2px solid rgba(246, 239, 220, 0.3);
+  border-radius: 18px;
+  padding: 14px 18px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
+  animation: sheet-up 0.3s ease-out;
+}
+@keyframes sheet-up {
+  from { transform: translateX(-50%) translateY(24px); opacity: 0; }
+  to { transform: translateX(-50%) translateY(0); opacity: 1; }
+}
+#passText, #resultText {
+  color: var(--cream);
+  font-weight: 900;
+  font-size: clamp(16px, 2.4vh, 20px);
+  letter-spacing: 0.04em;
+  text-align: center;
+}
+#resultScore { color: var(--cream-dim); font-weight: 800; font-size: 14px; letter-spacing: 0.1em; }

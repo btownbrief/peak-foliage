@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="180" height="180" viewBox="0 0 180 180">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#27506b"/>
+      <stop offset="0.42" stop-color="#f2c06a"/>
+      <stop offset="0.46" stop-color="#23543c"/>
+      <stop offset="1" stop-color="#122b1f"/>
+    </linearGradient>
+    <linearGradient id="greenHalf" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#63c785"/>
+      <stop offset="1" stop-color="#2e7d4c"/>
+    </linearGradient>
+    <linearGradient id="redHalf" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ef7c4a"/>
+      <stop offset="1" stop-color="#a63317"/>
+    </linearGradient>
+  </defs>
+  <rect width="180" height="180" rx="38" fill="url(#sky)"/>
+  <path d="M0 82 L26 62 L48 78 L74 58 L102 80 L128 64 L154 78 L180 66 L180 180 L0 180 Z" fill="#1d4a35"/>
+  <path d="M0 96 L34 78 L66 94 L98 76 L132 94 L162 80 L180 92 L180 180 L0 180 Z" fill="#143528"/>
+  <!-- one big leaf, caught mid-season: summer on the left, peak on the right -->
+  <g transform="rotate(8 90 100)">
+    <path d="M90 38 C48 58 40 104 88 148 L90 148 Z" fill="url(#greenHalf)" stroke="#0e241a" stroke-width="5" stroke-linejoin="round"/>
+    <path d="M90 38 C132 58 140 104 92 148 L90 148 Z" fill="url(#redHalf)" stroke="#0e241a" stroke-width="5" stroke-linejoin="round"/>
+    <line x1="90" y1="44" x2="90" y2="146" stroke="#0e241a" stroke-width="5" stroke-linecap="round"/>
+    <path d="M90 148 L90 164" stroke="#57402c" stroke-width="7" stroke-linecap="round"/>
+  </g>
+</svg>
