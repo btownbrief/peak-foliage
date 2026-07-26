@@ -24,8 +24,9 @@ leaves wins. Ties happen — that's stick season.
   that a kid can beat it. Has never heard of a corner.
 - **The Forester** 🌲 — minimax with alpha–beta pruning, at least 6 plies
   deep, with corners and edges weighted the way they deserve. With 10 or
-  fewer empty squares it solves the endgame *exactly* — every line read to
-  the last leaf.
+  fewer empty squares it attempts an exact endgame solve — every line read
+  to the last leaf — within a time budget, keeping its deep-search answer
+  if the clock runs out on a slow phone.
 
 ## How it works
 

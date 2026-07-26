@@ -6,7 +6,7 @@
 // flipsFor() / getStatus() instead.
 
 import {
-  SIZE, GREEN, RED, PASS,
+  SIZE, GREEN, RED, PASS, opponent,
   createInitialState, legalMoves, applyMove, getStatus, flipsFor,
 } from './engine.js';
 import { chooseMove } from './bot.js';
@@ -57,6 +57,8 @@ let state = createInitialState();
 let busy = false; // an animation or bot think is in flight
 let session = 0; // bumped on every new match / exit, cancels stale timers
 let tally = { green: 0, red: 0, ties: 0 };
+let firstPlayer = GREEN; // who opens the next game — like sugarbush-squares,
+                         // the loser opens the rematch (ties alternate)
 
 // Build the 64 canopy cells once.
 const cells = [];
@@ -93,18 +95,24 @@ passBtn.addEventListener('click', onHumanPass);
 
 function startMatch(chosen) {
   mode = chosen;
+  firstPlayer = GREEN; // green (you, against a bot) opens a fresh match
+  newGame();
+}
+
+function rematch() {
+  newGame(); // firstPlayer carries over — finish() decided who opens
+}
+
+function newGame() {
   session++;
-  state = createInitialState();
+  state = createInitialState(firstPlayer);
   busy = false;
   menuEl.classList.add('hidden');
   gameEl.classList.remove('hidden');
   passBar.classList.add('hidden');
   resultBar.classList.add('hidden');
   render();
-}
-
-function rematch() {
-  startMatch(mode);
+  advance(); // when red opens a bot game, wake the bot
 }
 
 function backToTrailhead() {
@@ -182,9 +190,11 @@ function makeLeaf(cell) {
 }
 
 function renderThermos(counts) {
+  // --pct drives the tube fill: height on the vertical thermos, width on
+  // the narrow-phone horizontal strip (see the media query in style.css).
   const pct = (n) => Math.max(3, (n / (SIZE * SIZE)) * 100);
-  greenFill.style.height = `${pct(counts.green)}%`;
-  redFill.style.height = `${pct(counts.red)}%`;
+  greenFill.style.setProperty('--pct', `${pct(counts.green)}%`);
+  redFill.style.setProperty('--pct', `${pct(counts.red)}%`);
   pulseBulb(greenBulb, counts.green);
   pulseBulb(redBulb, counts.red);
 }
@@ -242,10 +252,14 @@ document.addEventListener('pointerup', (e) => {
   if (!pressed) return;
   const { rect, move } = pressed;
   clearPreview();
-  const inCell =
-    e.clientX >= rect.left && e.clientX <= rect.right &&
-    e.clientY >= rect.top && e.clientY <= rect.bottom;
-  if (inCell && !busy) playMove(move);
+  // The press already chose a legal cell, so a little finger drift on
+  // release (up to ~0.6 cells past its edges) still plays it rather than
+  // cancelling the move.
+  const pad = rect.width * 0.6;
+  const nearCell =
+    e.clientX >= rect.left - pad && e.clientX <= rect.right + pad &&
+    e.clientY >= rect.top - pad && e.clientY <= rect.bottom + pad;
+  if (nearCell && !busy) playMove(move);
 });
 document.addEventListener('pointercancel', clearPreview);
 
@@ -349,15 +363,18 @@ function finish(st) {
     tally.ties++;
     resultText.textContent = 'STICK SEASON — DEAD EVEN 🍂';
     sound.tie();
+    firstPlayer = opponent(firstPlayer); // dead even: just take turns opening
   } else if (st.winner === GREEN) {
     tally.green++;
     resultText.textContent = mode === 'pass' ? 'SUMMER HOLDS ON! 🌿' : 'YOU TURNED THE WHOLE MOUNTAIN! 🍁';
     sound.win();
+    firstPlayer = RED; // the loser opens the rematch
   } else {
     tally.red++;
     resultText.textContent = mode === 'pass' ? 'PEAK FOLIAGE! 🍁' : BOT_WIN_LINES[mode];
     if (mode === 'pass') sound.win();
     else sound.lose();
+    firstPlayer = GREEN;
   }
   resultScore.textContent = `🌿 ${green} — ${red} 🍁`;
   render();

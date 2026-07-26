@@ -425,7 +425,7 @@ html, body {
   left: 0;
   right: 0;
   bottom: 0;
-  height: 3%;
+  height: var(--pct, 3%);
   border-radius: 999px;
   transition: height 0.7s cubic-bezier(0.3, 1, 0.4, 1);
 }
@@ -447,6 +447,37 @@ html, body {
 #thermoGreen .bulb { background: var(--leaf-green-deep); }
 #thermoRed .bulb { background: var(--leaf-red-deep); }
 .bulb.pulse { transform: scale(1.18); }
+
+/* Narrow phones: two vertical thermometers beside an 8x8 board squeeze the
+   cells to ~30px, so the thermos become a compact horizontal score strip
+   above the board and the canopy takes the full width. */
+@media (max-width: 480px) {
+  #forest { flex-direction: column; gap: 7px; }
+  #canopy { width: 100%; flex: 1; min-height: 0; order: 3; }
+  #board { max-width: min(430px, 100%, calc(100dvh - 330px)); }
+  .thermo {
+    flex-direction: row;
+    align-items: center;
+    width: 100%;
+    height: auto;
+    gap: 8px;
+    padding: 0 2px;
+  }
+  #thermoGreen { order: 1; }
+  #thermoRed { order: 2; }
+  .thermo .bulb { order: 0; width: 30px; height: 30px; font-size: 13px; }
+  .thermo .tube { order: 1; flex: 1; width: auto; height: 12px; }
+  .thermo .peak-label { order: 2; }
+  .tube .fill {
+    top: 0;
+    right: auto;
+    height: auto;
+    width: var(--pct, 3%);
+    transition: width 0.7s cubic-bezier(0.3, 1, 0.4, 1);
+  }
+  #thermoGreen .fill { background: linear-gradient(90deg, var(--leaf-green-deep), #63c785); }
+  #thermoRed .fill { background: linear-gradient(90deg, var(--leaf-red-deep), #ef7c4a); }
+}
 
 /* ------------------------------------------------------ pass + results */
 

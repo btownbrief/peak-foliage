@@ -1,0 +1,14 @@
+{
+  "name": "PEAK FOLIAGE",
+  "short_name": "Peak Foliage",
+  "description": "Reversi in the Green Mountains: flip whole lines of leaves and race the thermometers to peak. A Btown Games production.",
+  "start_url": ".",
+  "display": "fullscreen",
+  "orientation": "portrait",
+  "background_color": "#122b1f",
+  "theme_color": "#122b1f",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" },
+    { "src": "icon-180.png", "sizes": "180x180", "type": "image/png" }
+  ]
+}
