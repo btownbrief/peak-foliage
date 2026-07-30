@@ -55,6 +55,18 @@
             <span class="bot-blurb">knows every ridge line</span>
           </button>
         </div>
+        <div class="online-label">or play a friend — any two phones</div>
+        <div id="onlineRow">
+          <button class="bot-btn" id="hostBtn">
+            <span class="bot-name">🍃 START A CREW</span>
+            <span class="bot-blurb">get a code, tell a peeper</span>
+          </button>
+          <button class="bot-btn" id="joinBtn">
+            <span class="bot-name">🍁 JOIN A CREW</span>
+            <span class="bot-blurb">type the code they gave you</span>
+          </button>
+        </div>
+        <button id="rejoinBtn" class="chip-btn hidden"></button>
       </div>
       <button id="howBtn" class="chip-btn">🥾 HOW TO PLAY</button>
       <div id="howTo" class="hidden">
@@ -62,6 +74,34 @@
         between two of yours — any direction — and the whole line flips to your
         color. No trap, no move: you pass. When nobody can move, the most
         leaves wins the mountain.
+      </div>
+    </div>
+
+    <!-- Online setup: name (+ code when joining) -->
+    <div id="onlinePanel" class="overlay hidden">
+      <div class="op-card">
+        <div id="opTitle" class="op-title">START A CREW</div>
+        <label class="op-label" for="opName">YOUR NAME</label>
+        <input id="opName" maxlength="24" autocomplete="nickname" placeholder="Leaf peeper">
+        <div id="opCodeWrap" class="hidden">
+          <label class="op-label" for="opCode">CREW CODE</label>
+          <input id="opCode" maxlength="4" autocapitalize="characters" autocomplete="off" spellcheck="false" placeholder="ABCD">
+        </div>
+        <div id="opError" class="op-error hidden"></div>
+        <div class="op-btns">
+          <button id="opCancel" class="chip-btn">BACK</button>
+          <button id="opGo" class="big-btn">HIT THE TRAIL</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Lobby: show the crew code while we wait for the friend -->
+    <div id="lobby" class="overlay hidden">
+      <div class="op-card">
+        <div class="op-title">READ THIS CODE TO YOUR FELLOW PEEPER</div>
+        <div id="lobbyCode"></div>
+        <div id="lobbyHint">they open this game, tap <b>JOIN A CREW</b>, and type it in</div>
+        <div class="op-btns"><button id="lobbyCancel" class="chip-btn">LEAVE THE TRAIL</button></div>
       </div>
     </div>
     <footer id="credit">

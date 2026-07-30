@@ -11,6 +11,7 @@ import {
 } from './engine.js';
 import { chooseMove } from './bot.js';
 import { sound } from './audio.js';
+import { OnlineMatch, savedSession, clearSession, getName } from './rooms.js';
 
 const $ = (id) => document.getElementById(id);
 const menuEl = $('menu');
@@ -28,6 +29,17 @@ const greenFill = document.querySelector('#thermoGreen .fill');
 const redFill = document.querySelector('#thermoRed .fill');
 const greenBulb = document.querySelector('#thermoGreen .bulb');
 const redBulb = document.querySelector('#thermoRed .bulb');
+const trailBtn = $('trailBtn');
+const rematchBtn = $('rematchBtn');
+const onlinePanel = $('onlinePanel');
+const opTitle = $('opTitle');
+const opName = $('opName');
+const opCodeWrap = $('opCodeWrap');
+const opCode = $('opCode');
+const opError = $('opError');
+const lobbyEl = $('lobby');
+const lobbyCode = $('lobbyCode');
+const rejoinBtn = $('rejoinBtn');
 
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const FLIP_STAGGER = reducedMotion ? 0 : 80; // ms between leaves down a line
@@ -52,13 +64,14 @@ const PASS_LINES = {
 
 /* ------------------------------------------------------------- game shell */
 
-let mode = 'pass'; // 'pass' | 'peeper' | 'forester'
+let mode = 'pass'; // 'pass' | 'peeper' | 'forester' | 'online'
 let state = createInitialState();
 let busy = false; // an animation or bot think is in flight
 let session = 0; // bumped on every new match / exit, cancels stale timers
 let tally = { green: 0, red: 0, ties: 0 };
 let firstPlayer = GREEN; // who opens the next game — like sugarbush-squares,
                          // the loser opens the rematch (ties alternate)
+let online = null; // { match, myPlayer } while in an online crew
 
 // Build the 64 canopy cells once.
 const cells = [];
@@ -84,8 +97,8 @@ gameEl.appendChild(countChip);
 document.querySelectorAll('[data-mode]').forEach((btn) => {
   btn.addEventListener('click', () => startMatch(btn.dataset.mode));
 });
-$('trailBtn').addEventListener('click', backToTrailhead);
-$('rematchBtn').addEventListener('click', rematch);
+trailBtn.addEventListener('click', backToTrailhead);
+rematchBtn.addEventListener('click', rematch);
 $('howBtn').addEventListener('click', () => $('howTo').classList.toggle('hidden'));
 $('mute').addEventListener('click', () => {
   $('mute').textContent = sound.toggleMuted() ? '🔇' : '🔊';
@@ -100,7 +113,11 @@ function startMatch(chosen) {
 }
 
 function rematch() {
-  newGame(); // firstPlayer carries over — finish() decided who opens
+  if (online) {
+    onlineRematch();
+  } else {
+    newGame(); // firstPlayer carries over — finish() decided who opens
+  }
 }
 
 function newGame() {
@@ -116,6 +133,23 @@ function newGame() {
 }
 
 function backToTrailhead() {
+  if (online) {
+    // Leaving mid-crew ends the game for both phones — ask for a second tap.
+    if (trailBtn.dataset.armed !== '1') {
+      trailBtn.dataset.armed = '1';
+      trailBtn.textContent = '🥾 LEAVE?';
+      setTimeout(() => {
+        trailBtn.dataset.armed = '';
+        trailBtn.textContent = '🥾 TRAILHEAD';
+      }, 2500);
+      return;
+    }
+    online.match.leave(); // fire and forget; stops polling + clears session
+    online = null;
+    mode = 'pass';
+    trailBtn.dataset.armed = '';
+    trailBtn.textContent = '🥾 TRAILHEAD';
+  }
   session++;
   busy = false;
   clearPreview();
@@ -123,6 +157,7 @@ function backToTrailhead() {
   passBar.classList.add('hidden');
   resultBar.classList.add('hidden');
   menuEl.classList.remove('hidden');
+  refreshRejoin();
 }
 
 function later(ms, fn) {
@@ -135,7 +170,11 @@ function later(ms, fn) {
 /* ------------------------------------------------------------- rendering */
 
 function isHumanTurn() {
-  return mode === 'pass' || state.turn === GREEN;
+  if (mode === 'pass') return true;
+  if (mode === 'online') {
+    return online && online.match.status === 'playing' && state.turn === online.myPlayer;
+  }
+  return state.turn === GREEN;
 }
 
 function render() {
@@ -156,7 +195,13 @@ function render() {
 
   renderThermos(st.counts);
   renderTurnChip(st);
-  tallyEl.textContent = `🌿 ${tally.green} · 🍁 ${tally.red} · 🍂 ${tally.ties}`;
+  if (mode === 'online') {
+    const mine = online.myPlayer === GREEN ? tally.green : tally.red;
+    const theirs = online.myPlayer === GREEN ? tally.red : tally.green;
+    tallyEl.textContent = `YOU ${mine} · ${onlineOpponentName()} ${theirs} · 🍂 ${tally.ties}`;
+  } else {
+    tallyEl.textContent = `🌿 ${tally.green} · 🍁 ${tally.red} · 🍂 ${tally.ties}`;
+  }
 }
 
 // Make the cell's leaf element match the engine, no animation.
@@ -216,6 +261,16 @@ function renderTurnChip(st) {
   if (mode === 'pass') {
     turnChip.textContent = st.turn === GREEN ? '🍃 GREEN’S TURN' : '🍁 RED’S TURN';
     turnChip.className = st.turn === GREEN ? 'green' : 'red';
+  } else if (mode === 'online') {
+    turnChip.className = st.turn === GREEN ? 'green' : 'red';
+    if (st.turn === online.myPlayer) {
+      turnChip.textContent = st.turn === GREEN ? '🍃 YOUR MOVE' : '🍁 YOUR MOVE';
+    } else {
+      const opp = online.match.opponents()[0] || {};
+      turnChip.textContent = opp.away
+        ? `${onlineOpponentName()} WANDERED OFF TRAIL…`
+        : `WAITING ON ${onlineOpponentName()}…`;
+    }
   } else if (st.turn === GREEN) {
     turnChip.textContent = '🍃 YOUR MOVE';
     turnChip.className = 'green';
@@ -223,6 +278,11 @@ function renderTurnChip(st) {
     turnChip.textContent = BOT_THINKING[mode];
     turnChip.className = 'red';
   }
+}
+
+function onlineOpponentName() {
+  const opp = online && online.match.opponents()[0];
+  return String((opp && opp.name) || 'YOUR FELLOW PEEPER').toUpperCase();
 }
 
 /* ------------------------------------------------- press preview + input */
@@ -259,7 +319,7 @@ document.addEventListener('pointerup', (e) => {
   const nearCell =
     e.clientX >= rect.left - pad && e.clientX <= rect.right + pad &&
     e.clientY >= rect.top - pad && e.clientY <= rect.bottom + pad;
-  if (nearCell && !busy) playMove(move);
+  if (nearCell && !busy && isHumanTurn()) playMove(move);
 });
 document.addEventListener('pointercancel', clearPreview);
 
@@ -272,9 +332,11 @@ function clearPreview() {
 
 /* --------------------------------------------------- moves + animation */
 
-function playMove(move) {
+function playMove(move, remoteState = null) {
+  if (!remoteState && mode === 'online' &&
+      (state.turn !== online.myPlayer || online.match.status !== 'playing')) return;
   const lines = flipsFor(state, move); // the animation script, straight from the engine
-  const next = applyMove(state, move);
+  const next = remoteState || applyMove(state, move);
   const mover = state.turn;
   busy = true;
 
@@ -303,6 +365,7 @@ function playMove(move) {
   later(settle, () => {
     state = next;
     busy = false;
+    if (online && !remoteState) pushOnline(next);
     render();
     advance();
   });
@@ -322,6 +385,10 @@ function advance() {
       passText.textContent = PASS_LINES[who];
       passBtn.classList.remove('hidden');
       passBar.classList.remove('hidden');
+    } else if (mode === 'online') {
+      passText.textContent = `${onlineOpponentName()} is ${PASS_LINES.bot}`;
+      passBtn.classList.add('hidden');
+      passBar.classList.remove('hidden');
     } else {
       passText.textContent = `The ${mode === 'peeper' ? 'Leaf Peeper is' : 'Forester is'} ${PASS_LINES.bot}`;
       passBtn.classList.add('hidden');
@@ -336,7 +403,8 @@ function advance() {
     }
     return;
   }
-  if (!isHumanTurn()) {
+  passBar.classList.add('hidden');
+  if (mode !== 'online' && !isHumanTurn()) {
     busy = true;
     render(); // shows the thinking chip, hides the dots
     later(reducedMotion ? 150 : 550, () => {
@@ -348,9 +416,12 @@ function advance() {
 }
 
 function onHumanPass() {
+  if (busy || !getStatus(state).mustPass) return;
+  if (online && (state.turn !== online.myPlayer || online.match.status !== 'playing')) return;
   passBar.classList.add('hidden');
   sound.pass();
   state = applyMove(state, PASS);
+  if (online) pushOnline(state);
   render();
   advance();
 }
@@ -366,17 +437,333 @@ function finish(st) {
     firstPlayer = opponent(firstPlayer); // dead even: just take turns opening
   } else if (st.winner === GREEN) {
     tally.green++;
-    resultText.textContent = mode === 'pass' ? 'SUMMER HOLDS ON! 🌿' : 'YOU TURNED THE WHOLE MOUNTAIN! 🍁';
-    sound.win();
+    if (mode === 'online') {
+      const iWon = online.myPlayer === GREEN;
+      resultText.textContent = iWon
+        ? 'SUMMER HOLDS ON — YOU WIN! 🌿'
+        : `${onlineOpponentName()} KEPT THE MOUNTAIN GREEN 🌿`;
+      if (iWon) sound.win();
+      else sound.lose();
+    } else {
+      resultText.textContent = mode === 'pass' ? 'SUMMER HOLDS ON! 🌿' : 'YOU TURNED THE WHOLE MOUNTAIN! 🍁';
+      sound.win();
+    }
     firstPlayer = RED; // the loser opens the rematch
   } else {
     tally.red++;
-    resultText.textContent = mode === 'pass' ? 'PEAK FOLIAGE! 🍁' : BOT_WIN_LINES[mode];
-    if (mode === 'pass') sound.win();
-    else sound.lose();
+    if (mode === 'online') {
+      const iWon = online.myPlayer === RED;
+      resultText.textContent = iWon
+        ? 'YOU TURNED THE WHOLE MOUNTAIN! 🍁'
+        : `${onlineOpponentName()} FOUND PEAK 🍁`;
+      if (iWon) sound.win();
+      else sound.lose();
+    } else {
+      resultText.textContent = mode === 'pass' ? 'PEAK FOLIAGE! 🍁' : BOT_WIN_LINES[mode];
+      if (mode === 'pass') sound.win();
+      else sound.lose();
+    }
     firstPlayer = GREEN;
   }
   resultScore.textContent = `🌿 ${green} — ${red} 🍁`;
   render();
   later(reducedMotion ? 100 : 500, () => resultBar.classList.remove('hidden'));
 }
+
+/* ------------------------------------------------------------- online play */
+// Two phones, one shared engine state, refereed by the rooms layer
+// (js/rooms.js → Supabase). Host sits in seat 0 and takes whichever color
+// createInitialState() puts first; the friend takes the other color. Every
+// rule — including forced passes — still comes from engine.js.
+
+const GAME = 'peak-foliage';
+const HOST_PLAYER = createInitialState().turn;
+let panelIntent = 'host';
+let pollErrors = 0;
+
+$('hostBtn').addEventListener('click', () => openPanel('host'));
+$('joinBtn').addEventListener('click', () => openPanel('join'));
+$('opCancel').addEventListener('click', closePanel);
+$('opGo').addEventListener('click', onlineGo);
+$('lobbyCancel').addEventListener('click', cancelLobby);
+rejoinBtn.addEventListener('click', rejoinCrew);
+opCode.addEventListener('input', () => {
+  opCode.value = opCode.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+});
+[opName, opCode].forEach((el) => el.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') onlineGo();
+}));
+
+function openPanel(intent) {
+  panelIntent = intent;
+  opTitle.textContent = intent === 'host' ? 'START A CREW' : 'JOIN A CREW';
+  $('opGo').textContent = intent === 'host' ? 'GET A CODE' : 'HIT THE TRAIL';
+  opCodeWrap.classList.toggle('hidden', intent === 'host');
+  opError.classList.add('hidden');
+  opName.value = opName.value || getName();
+  onlinePanel.classList.remove('hidden');
+  (intent === 'join' && opName.value ? opCode : opName).focus();
+}
+
+function closePanel() {
+  onlinePanel.classList.add('hidden');
+}
+
+const FRIENDLY_ERRORS = {
+  not_found: 'No crew with that code — double-check the letters.',
+  room_full: 'That crew already headed up the mountain.',
+  room_started: 'That crew already headed up the mountain.',
+  not_ready: "Online play isn't switched on yet — check back soon!",
+  offline: "Can't reach the trail — are you online?",
+};
+
+function friendly(err) {
+  if (err && err.code === 'wrong_game') {
+    return `That code is for ${String(err.detail || 'another game').replace(/-/g, ' ')} — head there to use it.`;
+  }
+  return (err && FRIENDLY_ERRORS[err.code]) || 'A gust scrambled things — please try again.';
+}
+
+async function onlineGo() {
+  const name = opName.value.trim();
+  if (!name) {
+    opError.textContent = 'Every leaf peeper needs a name.';
+    opError.classList.remove('hidden');
+    opName.focus();
+    return;
+  }
+  const go = $('opGo');
+  go.disabled = true;
+  opError.classList.add('hidden');
+  try {
+    if (panelIntent === 'host') {
+      const match = await OnlineMatch.create({
+        game: GAME, name, state: createInitialState(), seats: 2,
+      });
+      closePanel();
+      openLobby(match);
+    } else {
+      const code = opCode.value.trim();
+      if (code.length !== 4) {
+        opError.textContent = 'The crew code is 4 letters.';
+        opError.classList.remove('hidden');
+        opCode.focus();
+        return;
+      }
+      const match = await OnlineMatch.join({ game: GAME, code, name });
+      closePanel();
+      enterOnlineGame(match);
+    }
+  } catch (err) {
+    opError.textContent = friendly(err);
+    opError.classList.remove('hidden');
+  } finally {
+    go.disabled = false;
+  }
+}
+
+function openLobby(match) {
+  lobbyCode.textContent = match.code;
+  lobbyEl.classList.remove('hidden');
+  match.start({
+    onStatus: (status) => {
+      if (status === 'playing') {
+        lobbyEl.classList.add('hidden');
+        enterOnlineGame(match);
+      }
+    },
+    onError: () => {}, // waiting-room hiccups resolve on the next poll
+  });
+  lobbyEl._match = match;
+}
+
+function cancelLobby() {
+  const match = lobbyEl._match;
+  if (match) match.leave();
+  lobbyEl._match = null;
+  lobbyEl.classList.add('hidden');
+  refreshRejoin();
+}
+
+async function rejoinCrew() {
+  rejoinBtn.disabled = true;
+  try {
+    const match = await OnlineMatch.resume({ game: GAME });
+    if (match.status === 'waiting') {
+      openLobby(match);
+    } else {
+      enterOnlineGame(match);
+    }
+  } catch {
+    clearSession(GAME);
+    refreshRejoin();
+  } finally {
+    rejoinBtn.disabled = false;
+  }
+}
+
+function refreshRejoin() {
+  const saved = savedSession(GAME);
+  rejoinBtn.classList.toggle('hidden', !saved);
+  if (saved) rejoinBtn.textContent = `↩ REJOIN YOUR CREW (${saved.code})`;
+}
+
+function enterOnlineGame(match) {
+  mode = 'online';
+  online = {
+    match,
+    myPlayer: match.seat === 0 ? HOST_PLAYER : opponent(HOST_PLAYER),
+  };
+  tally = { green: 0, red: 0, ties: 0 };
+  pollErrors = 0;
+  menuEl.classList.add('hidden');
+  onlinePanel.classList.add('hidden');
+  lobbyEl.classList.add('hidden');
+  gameEl.classList.remove('hidden');
+  repaintOnline(match.state);
+  match.start({
+    onState: onRemoteState,
+    onStatus: onRemoteStatus,
+    onPresence: onRemotePresence,
+    onError: onPollError,
+  });
+  // A resumed room can already be over because the other peeper left.
+  if (match.status === 'over' && !getStatus(state).over) onRemoteStatus('over');
+}
+
+/** Replace the canopy from shared truth (resume, pass, rematch, conflict). */
+function repaintOnline(newState) {
+  session++;
+  state = newState;
+  busy = false;
+  clearPreview();
+  passBar.classList.add('hidden');
+  resultBar.classList.add('hidden');
+  rematchBtn.classList.remove('hidden');
+  render();
+  advance();
+}
+
+function singleMoveBetween(before, after) {
+  let move = null;
+  for (let r = 0; r < SIZE; r++) {
+    for (let c = 0; c < SIZE; c++) {
+      if (before.grid[r][c] === 0 && after.grid[r][c] !== 0) {
+        if (move) return null;
+        move = { row: r, col: c };
+      }
+    }
+  }
+  if (!move) return null;
+  try {
+    const expected = applyMove(before, move);
+    return JSON.stringify(expected) === JSON.stringify(after) ? move : null;
+  } catch {
+    return null;
+  }
+}
+
+function onRemoteState(newState) {
+  const move = !busy && singleMoveBetween(state, newState);
+  if (move) {
+    // One ordinary placement: reuse Peak Foliage's leaf-drop + ripple.
+    playMove(move, newState);
+  } else {
+    // Forced passes, rematches, conflict truth, and unexpected diffs repaint.
+    repaintOnline(newState);
+  }
+}
+
+function onRemoteStatus(status) {
+  if (status !== 'over') return;
+  const opp = online && online.match.opponents()[0];
+  if (opp && opp.left && !getStatus(state).over) {
+    session++;
+    busy = false;
+    clearPreview();
+    for (const cell of cells) cell.classList.remove('legal');
+    passBar.classList.add('hidden');
+    turnChip.className = '';
+    turnChip.textContent = '';
+    resultText.textContent = `${onlineOpponentName()} LEFT THE TRAIL`;
+    const counts = getStatus(state).counts;
+    resultScore.textContent = `🌿 ${counts.green} — ${counts.red} 🍁`;
+    rematchBtn.classList.add('hidden');
+    resultBar.classList.remove('hidden');
+  }
+}
+
+function onRemotePresence(opponents) {
+  pollErrors = 0;
+  const opp = opponents[0];
+  if (opp && opp.left) rematchBtn.classList.add('hidden');
+  if (!busy && !getStatus(state).over) renderTurnChip(getStatus(state));
+}
+
+function onPollError(err) {
+  if (err && err.code === 'not_found') {
+    online.match.stop();
+    clearSession(GAME);
+    online = null;
+    mode = 'pass';
+    gameEl.classList.add('hidden');
+    menuEl.classList.remove('hidden');
+    refreshRejoin();
+    return;
+  }
+  pollErrors++;
+  if (pollErrors >= 3 && !getStatus(state).over) {
+    turnChip.className = '';
+    turnChip.textContent = 'WINDY CONNECTION — HANG TIGHT…';
+  }
+}
+
+async function pushOnline(newState) {
+  const match = online && online.match;
+  if (!match) return;
+  try {
+    await match.push(newState, { over: getStatus(newState).over });
+    pollErrors = 0;
+  } catch (err) {
+    if (err && err.code === 'version_conflict') {
+      if (online && online.match === match &&
+          JSON.stringify(state) !== JSON.stringify(match.state)) {
+        repaintOnline(match.state);
+      }
+      return;
+    }
+    // One calm retry, then let the poll loop surface the trouble.
+    setTimeout(async () => {
+      if (!online || online.match !== match) return;
+      try {
+        await match.push(newState, { over: getStatus(newState).over });
+        pollErrors = 0;
+      } catch (retryErr) {
+        onPollError(retryErr);
+      }
+    }, 1500);
+  }
+}
+
+async function onlineRematch() {
+  if (!online) return;
+  const fresh = createInitialState(firstPlayer);
+  repaintOnline(fresh);
+  try {
+    await online.match.push(fresh, {});
+    render();
+    advance();
+  } catch (err) {
+    if (err && err.code === 'version_conflict') {
+      // They turned the season first — take their fresh canopy.
+      if (JSON.stringify(state) !== JSON.stringify(online.match.state)) {
+        repaintOnline(online.match.state);
+      }
+    } else {
+      onPollError(err);
+    }
+  }
+}
+
+// Show the rejoin chip on first load if a crew is waiting on us.
+refreshRejoin();
