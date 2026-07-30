@@ -525,6 +525,7 @@ function friendly(err) {
 }
 
 async function onlineGo() {
+  if ($('opGo').disabled) return; // Enter key can't double-submit
   const name = opName.value.trim();
   if (!name) {
     opError.textContent = 'Every leaf peeper needs a name.';
@@ -563,6 +564,7 @@ async function onlineGo() {
 }
 
 function openLobby(match) {
+  if (lobbyEl._match && lobbyEl._match !== match) lobbyEl._match.stop();
   lobbyCode.textContent = match.code;
   lobbyEl.classList.remove('hidden');
   match.start({
@@ -594,9 +596,13 @@ async function rejoinCrew() {
     } else {
       enterOnlineGame(match);
     }
-  } catch {
-    clearSession(GAME);
-    refreshRejoin();
+  } catch (err) {
+    // Only a room that's truly gone forfeits the session — a flaky
+    // connection must not delete the one path back to the game.
+    if (err && (err.code === 'not_found' || err.code === 'not_seated' || err.code === 'room_started')) {
+      clearSession(GAME);
+      refreshRejoin();
+    }
   } finally {
     rejoinBtn.disabled = false;
   }
