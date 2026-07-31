@@ -64,6 +64,17 @@ html, body {
 #ridge-near { top: calc(26% - 5vh); height: 5.5vh; }
 
 .hidden { display: none !important; }
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
 
 /* ---------------------------------------------------------------- screens */
 
@@ -271,6 +282,40 @@ html, body {
 #turnChip.green { background: var(--leaf-green); }
 #turnChip.red { background: var(--leaf-red); color: var(--cream); }
 
+#coachHint {
+  position: absolute;
+  top: calc(env(safe-area-inset-top, 0px) + 82px);
+  left: 50%;
+  z-index: 24;
+  width: min(350px, calc(100% - 28px));
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px 8px 13px;
+  border: 1.5px solid rgba(242, 176, 74, 0.72);
+  border-radius: 12px;
+  color: var(--cream);
+  background: rgba(14, 36, 26, 0.95);
+  box-shadow: 0 5px 16px rgba(0, 0, 0, 0.38);
+  font-size: 12px;
+  font-weight: 750;
+  line-height: 1.25;
+}
+#coachHint span { flex: 1; }
+#coachDismiss {
+  flex: 0 0 auto;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 8px;
+  color: var(--floor);
+  background: var(--sun);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+}
+
 /* ------------------------------------------------- the canopy + thermos */
 
 #forest {
@@ -287,6 +332,7 @@ html, body {
 #canopy { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: center; }
 
 #board {
+  position: relative;
   width: 100%;
   max-width: min(430px, calc(100dvh - 250px));
   aspect-ratio: 1;
@@ -298,6 +344,7 @@ html, body {
   background: var(--floor);
   border: 3px solid var(--bark);
   border-radius: 16px;
+  overflow: hidden;
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45), inset 0 0 22px rgba(0, 0, 0, 0.5);
 }
 
@@ -311,6 +358,11 @@ html, body {
 .cell:nth-child(3n) { background: radial-gradient(circle at 60% 30%, #2f7449, #276140 65%); }
 .cell:nth-child(7n) { background: radial-gradient(circle at 40% 60%, #35804f, #2b6a44 65%); }
 .cell:nth-child(11n) { background: radial-gradient(circle at 50% 40%, #2d6f47, #245c3c 65%); }
+.cell.corner {
+  box-shadow:
+    inset 0 0 0 2px rgba(242, 176, 74, 0.34),
+    inset 0 -2px 4px rgba(0, 0, 0, 0.3);
+}
 
 .cell.legal { cursor: pointer; }
 .cell.legal::before {
@@ -353,6 +405,137 @@ html, body {
   border-radius: 999px;
   box-shadow: 0 3px 8px rgba(0, 0, 0, 0.4);
   pointer-events: none;
+}
+
+.wind-gust {
+  position: absolute;
+  z-index: 5;
+  height: 10px;
+  border-radius: 999px;
+  pointer-events: none;
+  transform-origin: left center;
+  background: linear-gradient(90deg, transparent, rgba(246, 239, 220, 0.8), transparent);
+  filter: blur(0.4px);
+  animation: gust-sweep 0.48s ease-out forwards;
+}
+@keyframes gust-sweep {
+  0% { opacity: 0; transform: translateY(-50%) rotate(var(--gust-angle)) scaleX(0); }
+  25% { opacity: 0.9; }
+  100% { opacity: 0; transform: translateY(-50%) rotate(var(--gust-angle)) scaleX(1); }
+}
+
+#momentCallout {
+  position: absolute;
+  left: 50%;
+  top: 42%;
+  z-index: 29;
+  max-width: min(92%, 390px);
+  padding: 9px 17px;
+  border: 2px solid rgba(246, 239, 220, 0.7);
+  border-radius: 999px;
+  color: var(--cream);
+  background: rgba(14, 36, 26, 0.94);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.48);
+  font-size: clamp(18px, 5.4vw, 28px);
+  font-weight: 950;
+  letter-spacing: 0.06em;
+  text-align: center;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(var(--moment-scale, 1));
+}
+#momentCallout.show { animation: moment-pop 1.05s ease-out forwards; }
+#momentCallout.corner-callout { color: var(--sun); border-color: var(--sun); }
+#momentCallout.lead-callout {
+  font-size: clamp(16px, 4.8vw, 23px);
+  color: var(--floor);
+  background: var(--cream);
+}
+@keyframes moment-pop {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.72); }
+  18%, 72% { opacity: 1; transform: translate(-50%, -50%) scale(var(--moment-scale, 1)); }
+  100% { opacity: 0; transform: translate(-50%, -62%) scale(var(--moment-scale, 1)); }
+}
+
+#effects {
+  position: absolute;
+  inset: 0;
+  z-index: 28;
+  overflow: hidden;
+  pointer-events: none;
+}
+.leaf-spark {
+  position: absolute;
+  font-style: normal;
+  font-size: 17px;
+  animation: spark-out 0.72s ease-out forwards;
+}
+@keyframes spark-out {
+  0% { opacity: 1; transform: translate(-50%, -50%) scale(0.5) rotate(0); }
+  70% { opacity: 1; }
+  100% {
+    opacity: 0;
+    transform: translate(calc(-50% + var(--spark-x)), calc(-50% + var(--spark-y))) scale(1) rotate(var(--spark-spin));
+  }
+}
+.season-leaf {
+  position: absolute;
+  left: -12%;
+  font-style: normal;
+  font-size: clamp(18px, 5vw, 30px);
+  animation: season-leaf-sweep 1.15s var(--season-delay) cubic-bezier(0.2, 0.75, 0.3, 1) forwards;
+}
+@keyframes season-leaf-sweep {
+  0% { opacity: 0; transform: translateX(0) translateY(0) rotate(0); }
+  12%, 78% { opacity: 0.9; }
+  100% {
+    opacity: 0;
+    transform: translateX(124vw) translateY(var(--season-drift)) rotate(var(--season-spin));
+  }
+}
+
+#board.season-green::after,
+#board.season-red::after,
+#board.season-tie::after,
+#board.season-settled-green::after,
+#board.season-settled-red::after,
+#board.season-settled-tie::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 7;
+  border-radius: 12px;
+  pointer-events: none;
+}
+#board.season-green::after,
+#board.season-red::after,
+#board.season-tie::after {
+  animation: canopy-sweep 1.05s ease-out forwards;
+}
+#board.season-green::after,
+#board.season-settled-green::after { --season-color: rgba(77, 180, 115, 0.5); }
+#board.season-red::after,
+#board.season-settled-red::after { --season-color: rgba(217, 82, 48, 0.5); }
+#board.season-tie::after,
+#board.season-settled-tie::after { --season-color: rgba(207, 195, 164, 0.28); }
+#board.season-settled-green::after,
+#board.season-settled-red::after,
+#board.season-settled-tie::after {
+  box-shadow: inset 0 0 0 4px var(--season-color);
+}
+@keyframes canopy-sweep {
+  0% { background: linear-gradient(105deg, transparent 0 45%, var(--season-color) 50%, transparent 55%); transform: translateX(-105%); }
+  72% { background: linear-gradient(105deg, transparent 0 35%, var(--season-color) 50%, transparent 65%); transform: translateX(105%); }
+  73% { transform: translateX(0); background: transparent; }
+  100% { transform: translateX(0); background: transparent; box-shadow: inset 0 0 0 4px var(--season-color); }
+}
+#board.shake-local { animation: canopy-shake 0.36s ease-out; }
+@keyframes canopy-shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-4px) rotate(-0.35deg); }
+  42% { transform: translateX(4px) rotate(0.35deg); }
+  65% { transform: translateX(-2px); }
 }
 
 /* --------------------------------------------------------------- leaves */
@@ -400,11 +583,6 @@ html, body {
   100% { transform: translateY(0) rotate(0deg) scale(1); }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .leaf-inner { transition-duration: 0.15s; }
-  .leaf.drop, .l-foliage i, .drift i, .cell.legal::before { animation: none; }
-}
-
 /* --------------------------------------------------------- thermometers */
 
 .thermo {
@@ -440,6 +618,7 @@ html, body {
   border-radius: 999px;
   transition: height 0.7s cubic-bezier(0.3, 1, 0.4, 1);
 }
+.tube .fill.no-transition { transition: none !important; }
 #thermoGreen .fill { background: linear-gradient(180deg, #63c785, var(--leaf-green-deep)); }
 #thermoRed .fill { background: linear-gradient(180deg, #ef7c4a, var(--leaf-red-deep)); }
 .bulb {
@@ -523,6 +702,13 @@ html, body {
   text-align: center;
 }
 #resultScore { color: var(--cream-dim); font-weight: 800; font-size: 14px; letter-spacing: 0.1em; }
+#resultLine {
+  color: var(--sun);
+  font-size: 13px;
+  font-weight: 750;
+  line-height: 1.35;
+  text-align: center;
+}
 
 /* ------------------------------------------------------------ online play */
 
@@ -626,3 +812,31 @@ html, body {
   50% { opacity: 0.75; }
 }
 #lobbyHint { color: var(--cream-dim); font-size: 13px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .leaf-inner,
+  .tube .fill,
+  .bulb { transition: none; }
+  .leaf.drop,
+  .l-foliage i,
+  .drift i,
+  .cell.legal::before,
+  #lobbyCode,
+  #passbar,
+  #resultbar,
+  #board.shake-local,
+  #board.season-green::after,
+  #board.season-red::after,
+  #board.season-tie::after { animation: none; }
+  #momentCallout.show {
+    opacity: 1;
+    animation: none;
+  }
+  #board.season-green::after,
+  #board.season-red::after,
+  #board.season-tie::after {
+    background: transparent;
+    box-shadow: inset 0 0 0 4px var(--season-color);
+  }
+  .bulb.pulse { transform: none; }
+}

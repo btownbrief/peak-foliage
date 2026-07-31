@@ -70,6 +70,28 @@ export const sound = {
     if (muted) return;
     tone(340 + i * 55, 0, 0.07, { type: 'triangle', gain: 0.1 });
   },
+  /** A whole branch turns at once. */
+  megaFlip(count) {
+    if (muted) return;
+    rustleBurst(0, 0.38, Math.min(0.14, 0.08 + count * 0.004));
+    [440, 554, 659].forEach((f, i) => {
+      tone(f, i * 0.055, 0.18, { type: 'triangle', gain: 0.09 });
+    });
+  },
+  /** Corners deserve a clear, bright strategy sting. */
+  corner() {
+    if (muted) return;
+    rustleBurst(0, 0.2, 0.1);
+    [523, 659, 784].forEach((f, i) => {
+      tone(f, i * 0.07, 0.28, { type: 'triangle', gain: 0.14 });
+    });
+  },
+  /** Quiet confirmation that the thermometers crossed. */
+  leadChange() {
+    if (muted) return;
+    tone(392, 0, 0.16, { type: 'sine', gain: 0.07 });
+    tone(523, 0.08, 0.2, { type: 'sine', gain: 0.08 });
+  },
   /** No moves — the wind just passes through. */
   pass() {
     if (muted) return;
