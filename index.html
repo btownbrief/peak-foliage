@@ -119,6 +119,11 @@
 
     <div id="turnbar"><span id="turnChip"></span></div>
 
+    <div id="coachHint" class="hidden">
+      <span>Hold a glowing dot to preview every leaf it will turn.</span>
+      <button id="coachDismiss" type="button">GOT IT</button>
+    </div>
+
     <div id="forest">
       <!-- summer thermometer -->
       <div class="thermo" id="thermoGreen">
@@ -147,10 +152,15 @@
     <div id="resultbar" class="hidden">
       <div id="resultText"></div>
       <div id="resultScore"></div>
+      <div id="resultLine" class="hidden"></div>
       <div id="resultBtns">
         <button id="rematchBtn" class="big-btn">↻&nbsp; REMATCH</button>
       </div>
     </div>
+
+    <div id="momentCallout" aria-hidden="true"></div>
+    <div id="effects" aria-hidden="true"></div>
+    <div id="announcer" class="sr-only" aria-live="polite"></div>
   </div>
 </div>
 <script type="module" src="js/main.js"></script>

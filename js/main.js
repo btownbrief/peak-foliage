@@ -25,6 +25,11 @@ const passBtn = $('passBtn');
 const resultBar = $('resultbar');
 const resultText = $('resultText');
 const resultScore = $('resultScore');
+const resultLine = $('resultLine');
+const coachHint = $('coachHint');
+const momentCallout = $('momentCallout');
+const effectsEl = $('effects');
+const announcer = $('announcer');
 const greenFill = document.querySelector('#thermoGreen .fill');
 const redFill = document.querySelector('#thermoRed .fill');
 const greenBulb = document.querySelector('#thermoGreen .bulb');
@@ -44,6 +49,9 @@ const rejoinBtn = $('rejoinBtn');
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const FLIP_STAGGER = reducedMotion ? 0 : 80; // ms between leaves down a line
 const FLIP_START = reducedMotion ? 60 : 220; // ms after the new leaf lands
+const MEGA_FLIP = 6;
+const HUGE_FLIP = 10;
+const COACH_KEY = 'peak-foliage-hold-preview-v1';
 
 /* ------------------------------------------------------------- copy desk */
 
@@ -51,9 +59,21 @@ const BOT_THINKING = {
   peeper: "📷 THE PEEPER'S GAWKING…",
   forester: "🌲 THE FORESTER'S SURVEYING…",
 };
-const BOT_WIN_LINES = {
-  peeper: 'THE LEAF PEEPER OUT-PEEPED YOU 📷',
-  forester: 'THE FORESTER READ THE WOODS 🌲',
+const BOT_RESULT_LINES = {
+  peeper: {
+    wonClose: '📷 Leaf Peeper: “Caught you right at golden hour!”',
+    wonBig: '📷 Leaf Peeper: “That view belongs on the front page!”',
+    lostClose: '📷 Leaf Peeper: “You found the shot I missed!”',
+    lostBig: '📷 Leaf Peeper: “Worth it for that view!”',
+    tie: '📷 Leaf Peeper: “Perfectly balanced — hold still!”',
+  },
+  forester: {
+    wonClose: '🌲 Forester: “A narrow trail, but a sound one.”',
+    wonBig: '🌲 Forester: “The canopy told me where to stand.”',
+    lostClose: '🌲 Forester: “You read that ridge line well.”',
+    lostBig: '🌲 Forester: “I’ll be studying your trail map.”',
+    tie: '🌲 Forester: “The woods call that a fair season.”',
+  },
 };
 const PASS_LINES = {
   you: 'No moves for you — the wind passes. 🍂',
@@ -72,6 +92,8 @@ let tally = { green: 0, red: 0, ties: 0 };
 let firstPlayer = GREEN; // who opens the next game — like sugarbush-squares,
                          // the loser opens the rematch (ties alternate)
 let online = null; // { match, myPlayer } while in an online crew
+let lastFinishedState = null;
+let calloutVersion = 0;
 
 // Build the 64 canopy cells once.
 const cells = [];
@@ -82,6 +104,9 @@ for (let r = 0; r < SIZE; r++) {
     cell.dataset.row = String(r);
     cell.dataset.col = String(c);
     cell.setAttribute('role', 'gridcell');
+    if ((r === 0 || r === SIZE - 1) && (c === 0 || c === SIZE - 1)) {
+      cell.classList.add('corner');
+    }
     boardEl.appendChild(cell);
     cells.push(cell);
   }
@@ -105,6 +130,7 @@ $('mute').addEventListener('click', () => {
 });
 $('mute').textContent = sound.muted ? '🔇' : '🔊';
 passBtn.addEventListener('click', onHumanPass);
+$('coachDismiss').addEventListener('click', dismissCoach);
 
 function startMatch(chosen) {
   mode = chosen;
@@ -124,11 +150,14 @@ function newGame() {
   session++;
   state = createInitialState(firstPlayer);
   busy = false;
+  lastFinishedState = null;
+  clearEffects();
   menuEl.classList.add('hidden');
   gameEl.classList.remove('hidden');
   passBar.classList.add('hidden');
   resultBar.classList.add('hidden');
-  render();
+  showCoach();
+  render({ animateCounts: false });
   advance(); // when red opens a bot game, wake the bot
 }
 
@@ -153,6 +182,8 @@ function backToTrailhead() {
   session++;
   busy = false;
   clearPreview();
+  clearEffects();
+  coachHint.classList.add('hidden');
   gameEl.classList.add('hidden');
   passBar.classList.add('hidden');
   resultBar.classList.add('hidden');
@@ -167,6 +198,141 @@ function later(ms, fn) {
   }, ms);
 }
 
+function showCoach() {
+  coachHint.classList.toggle(
+    'hidden',
+    getStatus(state).over || localStorage.getItem(COACH_KEY) === '1',
+  );
+}
+
+function dismissCoach() {
+  localStorage.setItem(COACH_KEY, '1');
+  coachHint.classList.add('hidden');
+}
+
+function clearEffects() {
+  calloutVersion++;
+  momentCallout.textContent = '';
+  momentCallout.className = '';
+  effectsEl.replaceChildren();
+  announcer.textContent = '';
+  boardEl.classList.remove(
+    'shake-local', 'season-green', 'season-red', 'season-tie',
+    'season-settled-green', 'season-settled-red', 'season-settled-tie',
+  );
+  for (const gust of boardEl.querySelectorAll('.wind-gust')) gust.remove();
+}
+
+function announce(text) {
+  announcer.textContent = text;
+}
+
+// One coalescing presentation banner: a new moment replaces the old one.
+function showMoment(text, kind, scale = 1) {
+  const version = ++calloutVersion;
+  momentCallout.textContent = text;
+  momentCallout.className = kind;
+  momentCallout.style.setProperty('--moment-scale', String(scale));
+  // Restart the entrance when two rare events happen close together.
+  void momentCallout.offsetWidth;
+  momentCallout.classList.add('show');
+  announce(text);
+  setTimeout(() => {
+    if (calloutVersion !== version) return;
+    momentCallout.classList.remove('show');
+  }, reducedMotion ? 1400 : 1050);
+}
+
+function spawnSparks(origin, player, count = 10) {
+  if (reducedMotion) return;
+  const gameRect = gameEl.getBoundingClientRect();
+  const rect = origin.getBoundingClientRect();
+  const available = Math.max(0, 40 - effectsEl.childElementCount);
+  const total = Math.min(count, available);
+  for (let i = 0; i < total; i++) {
+    const spark = document.createElement('i');
+    const angle = (Math.PI * 2 * i) / total;
+    const distance = 44 + (i % 3) * 18;
+    spark.className = 'leaf-spark';
+    spark.textContent = player === GREEN ? '🍃' : '🍁';
+    spark.style.left = `${rect.left + rect.width / 2 - gameRect.left}px`;
+    spark.style.top = `${rect.top + rect.height / 2 - gameRect.top}px`;
+    spark.style.setProperty('--spark-x', `${Math.cos(angle) * distance}px`);
+    spark.style.setProperty('--spark-y', `${Math.sin(angle) * distance}px`);
+    spark.style.setProperty('--spark-spin', `${(i % 2 ? -1 : 1) * (100 + i * 23)}deg`);
+    effectsEl.appendChild(spark);
+    spark.addEventListener('animationend', () => spark.remove(), { once: true });
+  }
+}
+
+function showWindGusts(move, lines) {
+  if (reducedMotion) return;
+  const boardRect = boardEl.getBoundingClientRect();
+  const start = cellAt(move.row, move.col).getBoundingClientRect();
+  const startX = start.left + start.width / 2 - boardRect.left;
+  const startY = start.top + start.height / 2 - boardRect.top;
+  for (const line of lines) {
+    const endPos = line[line.length - 1];
+    const end = cellAt(endPos.row, endPos.col).getBoundingClientRect();
+    const dx = end.left + end.width / 2 - boardRect.left - startX;
+    const dy = end.top + end.height / 2 - boardRect.top - startY;
+    const gust = document.createElement('i');
+    gust.className = 'wind-gust';
+    gust.style.left = `${startX}px`;
+    gust.style.top = `${startY}px`;
+    gust.style.width = `${Math.hypot(dx, dy) + end.width * 0.45}px`;
+    gust.style.setProperty('--gust-angle', `${Math.atan2(dy, dx)}rad`);
+    boardEl.appendChild(gust);
+    gust.addEventListener('animationend', () => gust.remove(), { once: true });
+  }
+}
+
+function leader(counts) {
+  if (counts.green === counts.red) return null;
+  return counts.green > counts.red ? GREEN : RED;
+}
+
+function animateFinalScore(green, red, animate) {
+  const finalText = `🌿 ${green} — ${red} 🍁`;
+  resultScore.setAttribute('aria-label', `Final score: green ${green}, red ${red}`);
+  if (!animate || reducedMotion) {
+    resultScore.textContent = finalText;
+    return;
+  }
+  resultScore.textContent = '🌿 0 — 0 🍁';
+  const mySession = session;
+  const start = performance.now();
+  const duration = 650;
+  const tick = (now) => {
+    if (session !== mySession) return;
+    const pct = Math.min(1, (now - start) / duration);
+    const eased = 1 - Math.pow(1 - pct, 3);
+    resultScore.textContent = `🌿 ${Math.round(green * eased)} — ${Math.round(red * eased)} 🍁`;
+    if (pct < 1) requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}
+
+function sweepCanopy(winner, animate) {
+  const suffix = winner === GREEN ? 'green' : winner === RED ? 'red' : 'tie';
+  boardEl.classList.add(`${animate ? 'season' : 'season-settled'}-${suffix}`);
+  if (!animate || reducedMotion) return;
+
+  const available = Math.max(0, 40 - effectsEl.childElementCount);
+  const total = Math.min(24, available);
+  for (let i = 0; i < total; i++) {
+    const leaf = document.createElement('i');
+    leaf.className = 'season-leaf';
+    leaf.textContent = winner === GREEN ? '🍃' : winner === RED ? '🍁' : '🍂';
+    leaf.style.top = `${8 + ((i * 37) % 84)}%`;
+    leaf.style.setProperty('--season-delay', `${(i % 8) * 45}ms`);
+    leaf.style.setProperty('--season-drift', `${-35 + (i % 7) * 12}px`);
+    leaf.style.setProperty('--season-spin', `${180 + (i % 5) * 90}deg`);
+    effectsEl.appendChild(leaf);
+    leaf.addEventListener('animationend', () => leaf.remove(), { once: true });
+  }
+}
+
 /* ------------------------------------------------------------- rendering */
 
 function isHumanTurn() {
@@ -177,7 +343,7 @@ function isHumanTurn() {
   return state.turn === GREEN;
 }
 
-function render() {
+function render({ animateCounts = true } = {}) {
   const st = getStatus(state);
   const showDots = !busy && !st.over && !st.mustPass && isHumanTurn();
   const legal = showDots ? legalMoves(state) : [];
@@ -193,7 +359,7 @@ function render() {
     }
   }
 
-  renderThermos(st.counts);
+  renderThermos(st.counts, animateCounts);
   renderTurnChip(st);
   if (mode === 'online') {
     const mine = online.myPlayer === GREEN ? tally.green : tally.red;
@@ -234,21 +400,34 @@ function makeLeaf(cell) {
   return leaf;
 }
 
-function renderThermos(counts) {
+function renderThermos(counts, animate) {
   // --pct drives the tube fill: height on the vertical thermos, width on
   // the narrow-phone horizontal strip (see the media query in style.css).
   const pct = (n) => Math.max(3, (n / (SIZE * SIZE)) * 100);
+  if (!animate) {
+    greenFill.classList.add('no-transition');
+    redFill.classList.add('no-transition');
+  }
   greenFill.style.setProperty('--pct', `${pct(counts.green)}%`);
   redFill.style.setProperty('--pct', `${pct(counts.red)}%`);
-  pulseBulb(greenBulb, counts.green);
-  pulseBulb(redBulb, counts.red);
+  pulseBulb(greenBulb, counts.green, animate);
+  pulseBulb(redBulb, counts.red, animate);
+  if (!animate) {
+    void greenFill.offsetHeight;
+    greenFill.classList.remove('no-transition');
+    redFill.classList.remove('no-transition');
+  }
 }
 
-function pulseBulb(bulb, n) {
+function pulseBulb(bulb, n, animate) {
   if (bulb.textContent !== String(n)) {
     bulb.textContent = String(n);
-    bulb.classList.add('pulse');
-    setTimeout(() => bulb.classList.remove('pulse'), 250);
+    if (animate) {
+      bulb.classList.add('pulse');
+      later(250, () => bulb.classList.remove('pulse'));
+    } else {
+      bulb.classList.remove('pulse');
+    }
   }
 }
 
@@ -292,6 +471,7 @@ let pressed = null; // { cell, move, rect }
 boardEl.addEventListener('pointerdown', (e) => {
   const cell = e.target.closest('.cell');
   if (!cell || !cell.classList.contains('legal') || busy) return;
+  dismissCoach();
   const move = { row: Number(cell.dataset.row), col: Number(cell.dataset.col) };
   const lines = flipsFor(state, move);
   const flips = lines.reduce((n, line) => n + line.length, 0);
@@ -338,6 +518,15 @@ function playMove(move, remoteState = null) {
   const lines = flipsFor(state, move); // the animation script, straight from the engine
   const next = remoteState || applyMove(state, move);
   const mover = state.turn;
+  const beforeStatus = getStatus(state);
+  const nextStatus = getStatus(next);
+  const flipCount = lines.reduce((total, line) => total + line.length, 0);
+  const cornerMove =
+    (move.row === 0 || move.row === SIZE - 1) &&
+    (move.col === 0 || move.col === SIZE - 1);
+  const beforeLeader = leader(beforeStatus.counts);
+  const nextLeader = leader(nextStatus.counts);
+  const changedLead = beforeLeader && nextLeader && beforeLeader !== nextLeader;
   busy = true;
 
   // Clear the dots right away, land the new leaf with a drop.
@@ -347,6 +536,26 @@ function playMove(move, remoteState = null) {
   leaf.classList.toggle('red', mover === RED);
   if (!reducedMotion) leaf.classList.add('drop');
   sound.land();
+
+  if (cornerMove || flipCount >= MEGA_FLIP) {
+    later(FLIP_START, () => {
+      const megaText = flipCount >= MEGA_FLIP ? `🍁 ${flipCount} LEAVES!` : '';
+      const text = cornerMove && megaText ? `CORNER! · ${megaText}` : cornerMove ? 'CORNER!' : megaText;
+      const scale = 1 + Math.min(0.32, Math.max(0, flipCount - MEGA_FLIP) * 0.045);
+      showMoment(text, cornerMove ? 'corner-callout' : 'mega-callout', scale);
+      if (cornerMove) {
+        spawnSparks(cell, mover, 12);
+        sound.corner();
+      } else {
+        sound.megaFlip(flipCount);
+      }
+      if (flipCount >= MEGA_FLIP) showWindGusts(move, lines);
+      if (flipCount >= HUGE_FLIP && !reducedMotion) {
+        boardEl.classList.add('shake-local');
+        later(380, () => boardEl.classList.remove('shake-local'));
+      }
+    });
+  }
 
   // The signature moment: the season ripples outward down every line.
   let longest = 0;
@@ -367,16 +576,20 @@ function playMove(move, remoteState = null) {
     busy = false;
     if (online && !remoteState) pushOnline(next);
     render();
+    if (changedLead && !nextStatus.over && !cornerMove && flipCount < MEGA_FLIP) {
+      showMoment('LEAD CHANGE!', 'lead-callout');
+      sound.leadChange();
+    }
     advance();
   });
 }
 
 // Look at the new position and keep the game moving: end it, handle a
 // forced pass, or wake the bot.
-function advance() {
+function advance(celebrate = true) {
   const st = getStatus(state);
   if (st.over) {
-    finish(st);
+    finish(st, celebrate);
     return;
   }
   if (st.mustPass) {
@@ -428,46 +641,75 @@ function onHumanPass() {
 
 /* --------------------------------------------------------------- finish */
 
-function finish(st) {
+function finish(st, celebrate = true) {
   const { green, red } = st.counts;
+  const finalState = JSON.stringify(state);
+  const newlyFinished = finalState !== lastFinishedState;
+  const flourish = celebrate && newlyFinished;
+  const close = Math.abs(green - red) <= 6;
+
+  if (newlyFinished) lastFinishedState = finalState;
+  coachHint.classList.add('hidden');
+  resultLine.classList.add('hidden');
+  resultLine.textContent = '';
+
   if (st.tie) {
-    tally.ties++;
+    if (newlyFinished) tally.ties++;
     resultText.textContent = 'STICK SEASON — DEAD EVEN 🍂';
-    sound.tie();
-    firstPlayer = opponent(firstPlayer); // dead even: just take turns opening
+    if (flourish) sound.tie();
+    if (newlyFinished) firstPlayer = opponent(firstPlayer); // dead even: just take turns opening
   } else if (st.winner === GREEN) {
-    tally.green++;
+    if (newlyFinished) tally.green++;
     if (mode === 'online') {
       const iWon = online.myPlayer === GREEN;
       resultText.textContent = iWon
         ? 'SUMMER HOLDS ON — YOU WIN! 🌿'
         : `${onlineOpponentName()} KEPT THE MOUNTAIN GREEN 🌿`;
-      if (iWon) sound.win();
-      else sound.lose();
+      if (flourish) (iWon ? sound.win : sound.lose)();
+    } else if (mode === 'pass') {
+      resultText.textContent = 'SUMMER HOLDS ON! 🌿';
+      if (flourish) sound.win();
     } else {
-      resultText.textContent = mode === 'pass' ? 'SUMMER HOLDS ON! 🌿' : 'YOU TURNED THE WHOLE MOUNTAIN! 🍁';
-      sound.win();
+      resultText.textContent = 'YOU KEPT THE MOUNTAIN GREEN! 🌿';
+      if (flourish) sound.win();
     }
-    firstPlayer = RED; // the loser opens the rematch
+    if (newlyFinished) firstPlayer = RED; // the loser opens the rematch
   } else {
-    tally.red++;
+    if (newlyFinished) tally.red++;
     if (mode === 'online') {
       const iWon = online.myPlayer === RED;
       resultText.textContent = iWon
         ? 'YOU TURNED THE WHOLE MOUNTAIN! 🍁'
         : `${onlineOpponentName()} FOUND PEAK 🍁`;
-      if (iWon) sound.win();
-      else sound.lose();
+      if (flourish) (iWon ? sound.win : sound.lose)();
+    } else if (mode === 'pass') {
+      resultText.textContent = 'PEAK FOLIAGE! 🍁';
+      if (flourish) sound.win();
     } else {
-      resultText.textContent = mode === 'pass' ? 'PEAK FOLIAGE! 🍁' : BOT_WIN_LINES[mode];
-      if (mode === 'pass') sound.win();
-      else sound.lose();
+      resultText.textContent = mode === 'peeper'
+        ? 'THE LEAF PEEPER OUT-PEEPED YOU 📷'
+        : 'THE FORESTER READ THE WOODS 🌲';
+      if (flourish) sound.lose();
     }
-    firstPlayer = GREEN;
+    if (newlyFinished) firstPlayer = GREEN;
   }
-  resultScore.textContent = `🌿 ${green} — ${red} 🍁`;
+
+  if (mode === 'peeper' || mode === 'forester') {
+    const lines = BOT_RESULT_LINES[mode];
+    const key = st.tie ? 'tie' : st.winner === GREEN
+      ? (close ? 'lostClose' : 'lostBig')
+      : (close ? 'wonClose' : 'wonBig');
+    resultLine.textContent = lines[key];
+    resultLine.classList.remove('hidden');
+  }
+
   render();
-  later(reducedMotion ? 100 : 500, () => resultBar.classList.remove('hidden'));
+  clearEffects();
+  sweepCanopy(st.winner, flourish);
+  animateFinalScore(green, red, flourish);
+  resultBar.classList.remove('hidden');
+  announce(`${resultText.textContent} Final score: green ${green}, red ${red}. ${resultLine.textContent || ''}`);
+  rematchBtn.focus({ preventScroll: true });
 }
 
 /* ------------------------------------------------------------- online play */
@@ -626,6 +868,7 @@ function enterOnlineGame(match) {
   onlinePanel.classList.add('hidden');
   lobbyEl.classList.add('hidden');
   gameEl.classList.remove('hidden');
+  lastFinishedState = null;
   repaintOnline(match.state);
   match.start({
     onState: onRemoteState,
@@ -643,11 +886,16 @@ function repaintOnline(newState) {
   state = newState;
   busy = false;
   clearPreview();
+  clearEffects();
   passBar.classList.add('hidden');
   resultBar.classList.add('hidden');
   rematchBtn.classList.remove('hidden');
-  render();
-  advance();
+  if (!getStatus(state).over) lastFinishedState = null;
+  showCoach();
+  render({ animateCounts: false });
+  // Shared truth can arrive from resume, reconnect, rematch, or conflict.
+  // Present it faithfully, but never replay celebration from that repaint.
+  advance(false);
 }
 
 function singleMoveBetween(before, after) {
@@ -669,13 +917,32 @@ function singleMoveBetween(before, after) {
   }
 }
 
+function singlePassBetween(before, after) {
+  if (!getStatus(before).mustPass) return false;
+  try {
+    return JSON.stringify(applyMove(before, PASS)) === JSON.stringify(after);
+  } catch {
+    return false;
+  }
+}
+
 function onRemoteState(newState) {
   const move = !busy && singleMoveBetween(state, newState);
   if (move) {
     // One ordinary placement: reuse Peak Foliage's leaf-drop + ripple.
     playMove(move, newState);
+  } else if (!busy && singlePassBetween(state, newState)) {
+    // A pass is also a newly confirmed transition, including the second
+    // pass that can end a season.
+    session++;
+    state = newState;
+    clearPreview();
+    clearEffects();
+    sound.pass();
+    render();
+    advance();
   } else {
-    // Forced passes, rematches, conflict truth, and unexpected diffs repaint.
+    // Rematches, conflict truth, and unexpected diffs repaint quietly.
     repaintOnline(newState);
   }
 }
@@ -687,6 +954,8 @@ function onRemoteStatus(status) {
     session++;
     busy = false;
     clearPreview();
+    clearEffects();
+    coachHint.classList.add('hidden');
     for (const cell of cells) cell.classList.remove('legal');
     passBar.classList.add('hidden');
     turnChip.className = '';
@@ -694,8 +963,12 @@ function onRemoteStatus(status) {
     resultText.textContent = `${onlineOpponentName()} LEFT THE TRAIL`;
     const counts = getStatus(state).counts;
     resultScore.textContent = `🌿 ${counts.green} — ${counts.red} 🍁`;
+    resultScore.setAttribute('aria-label', `Final score: green ${counts.green}, red ${counts.red}`);
+    resultLine.classList.add('hidden');
+    resultLine.textContent = '';
     rematchBtn.classList.add('hidden');
     resultBar.classList.remove('hidden');
+    announce(`${resultText.textContent}. Green ${counts.green}, red ${counts.red}.`);
   }
 }
 
@@ -712,6 +985,7 @@ function onPollError(err) {
     clearSession(GAME);
     online = null;
     mode = 'pass';
+    clearEffects();
     gameEl.classList.add('hidden');
     menuEl.classList.remove('hidden');
     refreshRejoin();
