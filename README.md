@@ -39,6 +39,7 @@ Plain static site — no build step, no frameworks, no npm. `index.html` +
 | `js/bot.js` | the Leaf Peeper and the Forester; only ever calls the engine's public API |
 | `js/main.js` | UI only: renders state, ripples the flip animation down each line, legal-move dots, hold-to-preview flip counts, the thermometers |
 | `js/audio.js` | procedural WebAudio rustles and flips, no audio files |
+| `js/leaderboard.js` | monthly leaderboard client (Supabase); vs-bot wins only, no accounts |
 
 Every push to `main` deploys to GitHub Pages via `.github/workflows/deploy.yml`.
 

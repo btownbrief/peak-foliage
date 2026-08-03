@@ -157,6 +157,20 @@
       <div id="resultBtns">
         <button id="rematchBtn" class="big-btn">↻&nbsp; REMATCH</button>
       </div>
+      <!-- Monthly leaderboard: shown after vs-bot games only (see js/main.js) -->
+      <div id="lb" class="hidden">
+        <div class="lb-tabs">
+          <button class="chip-btn sel" id="lbThisBtn">🏆 This Month</button>
+          <button class="chip-btn" id="lbLastBtn">Last Month</button>
+        </div>
+        <div class="lb-status" id="lbStatus"></div>
+        <ol id="lbList"></ol>
+        <div class="lb-form hidden" id="lbForm">
+          <input id="lbNameInput" maxlength="20" placeholder="Your name" autocomplete="nickname">
+          <button class="chip-btn" id="lbSaveBtn">SAVE</button>
+        </div>
+        <button class="chip-btn lb-rename" id="lbRenameBtn">✏️ Change name</button>
+      </div>
     </div>
 
     <div id="momentCallout" aria-hidden="true"></div>
