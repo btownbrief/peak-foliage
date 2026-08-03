@@ -710,6 +710,77 @@ html, body {
   text-align: center;
 }
 
+/* ---------------------------------------------------------- leaderboard */
+
+#lb {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1.5px solid rgba(246, 239, 220, 0.2);
+}
+.lb-tabs { display: flex; gap: 8px; }
+.lb-tabs .chip-btn { opacity: 0.65; }
+.lb-tabs .chip-btn.sel {
+  opacity: 1;
+  background: var(--leaf-red-deep);
+  border-color: rgba(246, 239, 220, 0.55);
+}
+.lb-status {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  color: var(--cream-dim);
+  text-align: center;
+  min-height: 15px;
+}
+#lbList {
+  list-style: none;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+#lbList li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--cream);
+  padding: 3px 8px;
+  border-radius: 8px;
+}
+#lbList li.me { background: rgba(242, 176, 74, 0.18); color: var(--sun); }
+#lbList .rank { width: 26px; text-align: center; }
+#lbList .nm {
+  flex: 1;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#lbList .sc { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.lb-form { display: flex; gap: 8px; width: 100%; }
+.lb-form input {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 12px;
+  color: var(--cream);
+  background: var(--floor);
+  border: 2px solid rgba(246, 239, 220, 0.3);
+  border-radius: 10px;
+  outline: none;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  -webkit-user-select: text;
+  user-select: text;
+}
+.lb-form input:focus { border-color: var(--sun); }
+
 /* ------------------------------------------------------------ online play */
 
 .online-label {

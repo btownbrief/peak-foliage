@@ -12,6 +12,10 @@ import {
 import { chooseMove } from './bot.js';
 import { sound } from './audio.js';
 import { OnlineMatch, savedSession, clearSession, getName } from './rooms.js';
+import {
+  lbEnabled, fetchTop, submitScore, renamePlayer, monthLabel,
+  getName as lbGetName, playerId as lbPlayerId,
+} from './leaderboard.js';
 
 const $ = (id) => document.getElementById(id);
 const menuEl = $('menu');
@@ -156,6 +160,7 @@ function newGame() {
   gameEl.classList.remove('hidden');
   passBar.classList.add('hidden');
   resultBar.classList.add('hidden');
+  resetLbPanel();
   showCoach();
   render({ animateCounts: false });
   advance(); // when red opens a bot game, wake the bot
@@ -187,6 +192,7 @@ function backToTrailhead() {
   gameEl.classList.add('hidden');
   passBar.classList.add('hidden');
   resultBar.classList.add('hidden');
+  resetLbPanel();
   menuEl.classList.remove('hidden');
   refreshRejoin();
 }
@@ -639,6 +645,120 @@ function onHumanPass() {
   advance();
 }
 
+/* ------------------------------------------------------------- leaderboard */
+// Monthly board for vs-bot wins only. Score = leaf margin (green − red),
+// +1000 for Forester wins so any Forester win outranks any Leaf Peeper win.
+
+const lbBox = $('lb');
+const lbList = $('lbList');
+const lbStatusEl = $('lbStatus');
+const lbForm = $('lbForm');
+const lbNameInput = $('lbNameInput');
+const lbThisBtn = $('lbThisBtn');
+const lbLastBtn = $('lbLastBtn');
+const lbRenameBtn = $('lbRenameBtn');
+let lbMonthOffset = 0;
+
+if (lbEnabled()) {
+  lbThisBtn.textContent = `🏆 ${monthLabel(0)}`;
+  lbLastBtn.textContent = monthLabel(-1);
+}
+
+function resetLbPanel() {
+  lbBox.classList.add('hidden');
+  lbForm.classList.add('hidden');
+  lbForm.dataset.pendingScore = '';
+}
+
+function botWinScore(st) {
+  const margin = st.counts.green - st.counts.red;
+  return mode === 'forester' ? 1000 + margin : margin;
+}
+
+// s >= 1000 means a Forester win (margin = s - 1000); otherwise a Peeper win
+function lbScoreLabel(s) {
+  return s >= 1000 ? `🌲 +${s - 1000} leaves` : `🍁 +${s} leaves`;
+}
+
+// score > 0 submits a fresh win; score 0 just shows the standings read-only
+async function updateLeaderboard(score) {
+  if (!lbEnabled()) return;
+  lbBox.classList.remove('hidden');
+  if (score > 0 && !lbGetName()) {
+    // first win with no saved name: hold the score until they pick one
+    lbForm.classList.remove('hidden');
+    lbRenameBtn.classList.add('hidden');
+    lbStatusEl.textContent = 'Pick a name to join the monthly leaderboard!';
+    lbList.innerHTML = '';
+    lbForm.dataset.pendingScore = String(score);
+    return;
+  }
+  if (score > 0) {
+    try { await submitScore(score); } catch { /* offline — still show the board */ }
+  }
+  renderLbBoard();
+}
+
+async function renderLbBoard() {
+  lbForm.classList.add('hidden');
+  lbRenameBtn.classList.remove('hidden');
+  lbStatusEl.textContent = 'Loading…';
+  try {
+    const rows = await fetchTop(lbMonthOffset);
+    const me = lbPlayerId();
+    lbList.innerHTML = '';
+    rows.slice(0, 10).forEach((r, i) => {
+      const li = document.createElement('li');
+      if (r.player_id === me) li.className = 'me';
+      const medal = ['🥇', '🥈', '🥉'][i];
+      li.innerHTML = '<span class="rank"></span><span class="nm"></span><span class="sc"></span>';
+      li.querySelector('.rank').textContent = medal || `${i + 1}.`;
+      li.querySelector('.nm').textContent = r.name;
+      li.querySelector('.sc').textContent = lbScoreLabel(r.score);
+      lbList.appendChild(li);
+    });
+    const myRank = rows.findIndex((r) => r.player_id === me);
+    lbStatusEl.textContent = rows.length === 0
+      ? 'No scores yet this month — be the first!'
+      : myRank >= 0 ? `You're #${myRank + 1} of ${rows.length} this month` : '';
+  } catch {
+    lbStatusEl.textContent = 'Leaderboard unavailable (offline?)';
+  }
+}
+
+$('lbSaveBtn').addEventListener('click', async () => {
+  const name = lbNameInput.value.trim();
+  if (!name) { lbNameInput.focus(); return; }
+  const pending = Number(lbForm.dataset.pendingScore || 0);
+  lbForm.dataset.pendingScore = '';
+  try {
+    await renamePlayer(name); // saves locally + renames any existing rows
+    if (pending > 0) await submitScore(pending);
+  } catch { /* offline — the name is still saved locally */ }
+  renderLbBoard();
+});
+lbNameInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') $('lbSaveBtn').click();
+});
+lbRenameBtn.addEventListener('click', () => {
+  lbNameInput.value = lbGetName();
+  lbForm.classList.remove('hidden');
+  lbRenameBtn.classList.add('hidden');
+  lbNameInput.focus();
+});
+lbThisBtn.addEventListener('click', () => {
+  lbMonthOffset = 0;
+  lbThisBtn.classList.add('sel');
+  lbLastBtn.classList.remove('sel');
+  renderLbBoard();
+});
+lbLastBtn.addEventListener('click', () => {
+  lbMonthOffset = -1;
+  lbLastBtn.classList.add('sel');
+  lbThisBtn.classList.remove('sel');
+  renderLbBoard();
+});
+
 /* --------------------------------------------------------------- finish */
 
 function finish(st, celebrate = true) {
@@ -708,6 +828,14 @@ function finish(st, celebrate = true) {
   sweepCanopy(st.winner, flourish);
   animateFinalScore(green, red, flourish);
   resultBar.classList.remove('hidden');
+  if (mode === 'peeper' || mode === 'forester') {
+    // Submit only on a fresh, celebrated human win — finish() can be
+    // re-entered when repainting an already-finished board (newlyFinished
+    // is false then) or with celebrate:false; never resubmit those.
+    // Losses and ties still show the standings read-only.
+    const humanWon = flourish && !st.tie && st.winner === GREEN;
+    updateLeaderboard(humanWon ? botWinScore(st) : 0);
+  }
   announce(`${resultText.textContent} Final score: green ${green}, red ${red}. ${resultLine.textContent || ''}`);
   rematchBtn.focus({ preventScroll: true });
 }
@@ -889,6 +1017,7 @@ function repaintOnline(newState) {
   clearEffects();
   passBar.classList.add('hidden');
   resultBar.classList.add('hidden');
+  resetLbPanel();
   rematchBtn.classList.remove('hidden');
   if (!getStatus(state).over) lastFinishedState = null;
   showCoach();
